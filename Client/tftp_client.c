@@ -94,14 +94,16 @@ char* filename;
 
 	// Set the filename portion of the WRQ packet
 	filename_ptr = send_buffer + FILENAME_OFFSET;
-	strncpy(filename_ptr, filename, strlen(filename));
+	//strncpy(filename_ptr, filename, strlen(filename));
+	strcpy(filename_ptr, filename);
 
 	printf("filename: %s\n", filename_ptr);
 
 	// Set the mode portion of the WRQ packet
 	mode_ptr = send_buffer + FILENAME_OFFSET + strlen(filename) + 1;
-	strncpy(mode_ptr, MODE_OCTET, strlen(MODE_OCTET));
-	
+	//strncpy(mode_ptr, MODE_OCTET, strlen(MODE_OCTET));
+	strcpy(mode_ptr, MODE_OCTET);
+
 	printf("mode: %s\n", mode_ptr);
 
 	printf("buffer set\n");

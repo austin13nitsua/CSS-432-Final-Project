@@ -57,6 +57,7 @@ int            sockfd;
 	unsigned short* op_code_ptr;
 	char* filename_ptr;
 	char* mode_ptr;
+	char* mode;
 
 /* Main echo server loop. Note that it never terminates, as there  */
 /* is no way for UDP to know when the data are finished.           */
@@ -84,23 +85,22 @@ int            sockfd;
 			 exit(3);
 			}
 
-		/*&
-		for(int i = 0; i < 516; i++) {
-			printf("0x%C,", receive_buffer[i]);
-		}
-		*/
 		op_code_ptr = (unsigned short*) receive_buffer;
 		op_code = ntohs(*op_code_ptr);
 		printf("opcode: %d\n", op_code);
 
 		filename_ptr = receive_buffer + FILENAME_OFFSET;
-		char* filename;
-		strncpy(filename, filename_ptr, strlen(filename_ptr));
+		printf("filename: %s\n", receive_buffer + FILENAME_OFFSET);
 
-		printf("filename: %s\n", filename);
+		mode_ptr = receive_buffer + FILENAME_OFFSET + strlen(filename_ptr) + 1;
+		printf("mode: %s\n", receive_buffer + FILENAME_OFFSET + strlen(filename_ptr) + 1);
+		/*
+		for(int i = 0; i < 20; i++) {
+			printf("%c", receive_buffer[i+FILENAME_OFFSET]);
+		}
+		printf("\n");
+		*/
 		
-		mode_ptr = filename_ptr + strlen(filename_ptr) + 1;
-		printf("mode: %s\n", mode_ptr);
 
 		return 0;
 
