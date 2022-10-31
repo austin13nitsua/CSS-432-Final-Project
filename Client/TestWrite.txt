@@ -1,0 +1,2 @@
+This file is a test file.
+It is a file made to be written from the client directory to the server's directory.
