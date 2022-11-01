@@ -30,6 +30,7 @@ const static unsigned short OP_CODE_ERROR 	= 5;
 
 /* Offset values.												   */
 const static int FILENAME_OFFSET = 2;
+const static int BLOCK_OFFSET = 2;
 
 /* Mode values. 												   */
 const static char MODE_OCTET[]  = "octet";
@@ -53,11 +54,16 @@ int            sockfd;
 	int    n, clilen;
 	char receive_buffer[MAX_BUFFER_SIZE];
 	bzero(receive_buffer, sizeof(receive_buffer));
+	char send_buffer[MAX_BUFFER_SIZE];
+	bzero(send_buffer, sizeof(send_buffer));
 	unsigned short op_code;
 	unsigned short* op_code_ptr;
 	char* filename_ptr;
+	char* filename;
 	char* mode_ptr;
 	char* mode;
+	unsigned short block_num;
+	unsigned short* block_num_ptr;
 
 /* Main echo server loop. Note that it never terminates, as there  */
 /* is no way for UDP to know when the data are finished.           */
@@ -87,23 +93,54 @@ int            sockfd;
 
 		op_code_ptr = (unsigned short*) receive_buffer;
 		op_code = ntohs(*op_code_ptr);
-		printf("opcode: %d\n", op_code);
 
 		filename_ptr = receive_buffer + FILENAME_OFFSET;
-		printf("filename: %s\n", receive_buffer + FILENAME_OFFSET);
+		strcpy(filename, filename_ptr);
 
 		mode_ptr = receive_buffer + FILENAME_OFFSET + strlen(filename_ptr) + 1;
-		printf("mode: %s\n", receive_buffer + FILENAME_OFFSET + strlen(filename_ptr) + 1);
-		/*
-		for(int i = 0; i < 20; i++) {
-			printf("%c", receive_buffer[i+FILENAME_OFFSET]);
+		printf("mode: %s\n", mode_ptr);		
+
+/* Logic for when WRQ is received. 								  */
+
+		if(op_code == 2) {
+			// Create file in Server directory to write to
+			printf("WRQ Packet received\n");
+			FILE* write_file;
+			write_file = fopen(filename, "w");
+
+			// Check if file was created succesfully
+			if(write_file == NULL) {
+				fprintf(stderr, "Error: File could not be opened.\n");
+				return -1;
+			}
+
+			printf("File %s created, ready for writing\n", filename);
+
+			// Send first ACK packet back to Client
+
+			// Set the opcode portion of the ACK packet
+			printf("Building ACK packet\n");
+			op_code = OP_CODE_ACK;
+			op_code_ptr = (unsigned short*) send_buffer;
+			*op_code_ptr = htons(op_code);
+			
+			// Set the Block Number portion of the ACK packet
+			block_num = 0;
+			block_num_ptr = (unsigned short*) send_buffer + BLOCK_OFFSET;
+			*block_num_ptr = htons(block_num);
+
+			printf("ACK packet built with opcode: %d, and block #: %d\n", 
+					ntohs(*op_code_ptr), ntohs(*block_num_ptr));
+
+			if (sendto(sockfd, send_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, clilen) != MAX_BUFFER_SIZE) {
+				printf("%s: sendto error\n",progname);
+			 	exit(4);
+			}
+
+			printf("Sent ACK packet\n");
 		}
-		printf("\n");
-		*/
-		
 
 		return 0;
-
 	}
 }
 

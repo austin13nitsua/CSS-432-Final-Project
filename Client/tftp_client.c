@@ -40,6 +40,7 @@ const static unsigned short OP_CODE_ERROR 	= 5;
 
 /* Offset values.												   */
 const static int FILENAME_OFFSET = 2;
+const static int BLOCK_OFFSET = 2;
 
 /* Mode values. 												   */
 const static char MODE_OCTET[]  = "octet";
@@ -63,14 +64,16 @@ char* filename;
 	int     n;
 	char    send_buffer[MAX_BUFFER_SIZE], recvline[MAX_BUFFER_SIZE + 1];
 	bzero(send_buffer, sizeof(send_buffer));
+	char receive_buffer[MAX_BUFFER_SIZE];
+	bzero(receive_buffer, sizeof(receive_buffer));
 	unsigned short op_code;
 	unsigned short* op_code_ptr;
 	char* filename_ptr;
 	char* mode_ptr;
+	unsigned short block_num;
+	unsigned short* block_num_ptr;
 
 	FILE* 	read_file;
-
-	printf("dg_wrq called\n");
 
 /* Attempt to open the read file, if this cannot be done, return   */
 /* immediately with error code -1, otherwise file is open and      */
@@ -84,41 +87,54 @@ char* filename;
 	}
 
 /*	Initiate WRQ by sending a WRQ packet to the server			   */
-	printf("about to set...\n");
+	
+	printf("Building WRQ packet\n");
+
 	// Set the opcode portion of the WRQ packet
 	op_code = OP_CODE_WRQ;
 	op_code_ptr = (unsigned short*) send_buffer;
 	*op_code_ptr = htons(op_code);
 
-	printf("opcode: %d\n", op_code);
-
 	// Set the filename portion of the WRQ packet
 	filename_ptr = send_buffer + FILENAME_OFFSET;
-	//strncpy(filename_ptr, filename, strlen(filename));
 	strcpy(filename_ptr, filename);
 
-	printf("filename: %s\n", filename_ptr);
 
 	// Set the mode portion of the WRQ packet
 	mode_ptr = send_buffer + FILENAME_OFFSET + strlen(filename) + 1;
-	//strncpy(mode_ptr, MODE_OCTET, strlen(MODE_OCTET));
 	strcpy(mode_ptr, MODE_OCTET);
 
-	printf("mode: %s\n", mode_ptr);
+	printf("WRQ packet built with opcode: %d, filename: %s, and mode: %s\n",
+			ntohs(*op_code_ptr),filename_ptr,mode_ptr);
 
-	printf("buffer set\n");
-
+	// Send WRQ packet to Server
 	if (sendto(sockfd, send_buffer, MAX_BUFFER_SIZE, 0, pserv_addr, servlen) != MAX_BUFFER_SIZE)
 			{
 			 printf("%s: sendto error on socket\n",progname);
 			 exit(3);
 			}
 
-	printf("buffer = ");
-	//printf(send_buffer);
-	printf("sent packet!\n");
-	
+	printf("Sent WRQ packet\n");
 
+	// Receive ACK packet from Server
+	n = recvfrom(sockfd, receive_buffer, MAX_BUFFER_SIZE, 0, NULL, NULL);
+
+	if(n < 0) {
+		printf("%s: recvfrom error\n",progname);
+		exit(3);
+	}
+
+	op_code_ptr = (unsigned short*) receive_buffer;
+	op_code = ntohs(*op_code_ptr);
+
+	block_num_ptr = (unsigned short*) receive_buffer + BLOCK_OFFSET;
+	block_num = ntohs(*block_num_ptr);
+
+	if(op_code == 4) {
+		printf("ACK packet received with ");
+		printf("opcode: %d, and ", op_code);
+		printf("block #: %d\n", block_num);
+	}
 }
 
 /* The main program sets up the local socket for communication     */
