@@ -41,6 +41,7 @@ const static unsigned short OP_CODE_ERROR 	= 5;
 /* Offset values.												   */
 const static int FILENAME_OFFSET = 2;
 const static int BLOCK_OFFSET = 2;
+const static int DATA_OFFSET = 2;
 
 /* Mode values. 												   */
 const static char MODE_OCTET[]  = "octet";
@@ -72,6 +73,7 @@ char* filename;
 	char* mode_ptr;
 	unsigned short block_num;
 	unsigned short* block_num_ptr;
+	char* data_ptr;
 
 	FILE* 	read_file;
 
@@ -79,7 +81,7 @@ char* filename;
 /* immediately with error code -1, otherwise file is open and      */
 /* ready for reading.											   */
 
-	read_file = fopen(filename, "r");
+	read_file = fopen(filename, "rb");
 
 	if(read_file == NULL) {
 		fprintf(stderr, "Error: File could not be opened.\n");
@@ -135,6 +137,48 @@ char* filename;
 		printf("opcode: %d, and ", op_code);
 		printf("block #: %d\n", block_num);
 	}
+
+	// Make and send DATA packet
+	bzero(send_buffer, sizeof(send_buffer));
+	op_code = OP_CODE_DATA;
+	op_code_ptr = (unsigned short*) send_buffer;
+	*op_code_ptr = htons(op_code);
+
+	block_num = 1;
+	block_num_ptr = (unsigned short*) send_buffer + BLOCK_OFFSET;
+	*block_num_ptr = htons(block_num);
+
+	data_ptr = block_num_ptr + DATA_OFFSET;
+	char* file_data;
+	int file_length;
+
+	fseek(read_file, 0, SEEK_END);
+	file_length = ftell(read_file);
+	rewind(read_file);
+
+	file_data = (char*) malloc(file_length * sizeof(char));
+	fread(file_data, file_length, 1, read_file);
+	fclose(read_file);
+
+	bcopy(file_data, data_ptr, file_length);
+	free(file_data);
+	
+	printf("DATA packet built with opcode: %d, and block number: %d\n",
+			ntohs(*op_code_ptr), ntohs(*block_num_ptr));
+	printf("DATA in packet: ");
+	for(int i = 0; i < file_length; i++) {
+		printf("%c", data_ptr[i]);
+	}
+	printf("\n");
+	
+	// Send DATA packet to server
+	if (sendto(sockfd, send_buffer, MAX_BUFFER_SIZE, 0, pserv_addr, servlen) != MAX_BUFFER_SIZE)
+			{
+			 printf("%s: sendto error on socket\n",progname);
+			 exit(3);
+			}
+
+	printf("Sent WRQ packet\n");
 }
 
 /* The main program sets up the local socket for communication     */

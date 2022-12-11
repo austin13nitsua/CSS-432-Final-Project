@@ -31,6 +31,7 @@ const static unsigned short OP_CODE_ERROR 	= 5;
 /* Offset values.												   */
 const static int FILENAME_OFFSET = 2;
 const static int BLOCK_OFFSET = 2;
+const static int DATA_OFFSET = 2;
 
 /* Mode values. 												   */
 const static char MODE_OCTET[]  = "octet";
@@ -64,6 +65,7 @@ int            sockfd;
 	char* mode;
 	unsigned short block_num;
 	unsigned short* block_num_ptr;
+	char* data_ptr;
 
 /* Main echo server loop. Note that it never terminates, as there  */
 /* is no way for UDP to know when the data are finished.           */
@@ -106,7 +108,7 @@ int            sockfd;
 			// Create file in Server directory to write to
 			printf("WRQ Packet received\n");
 			FILE* write_file;
-			write_file = fopen(filename, "w");
+			write_file = fopen(filename, "wb");
 
 			// Check if file was created succesfully
 			if(write_file == NULL) {
@@ -136,8 +138,34 @@ int            sockfd;
 				printf("%s: sendto error\n",progname);
 			 	exit(4);
 			}
-
 			printf("Sent ACK packet\n");
+
+			// Receive DATA packet from Client
+			n = recvfrom(sockfd, receive_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, &clilen);
+			if (n < 0)
+			{
+			 printf("%s: recvfrom error\n",progname);
+			 exit(3);
+			}
+
+			op_code_ptr = (unsigned short*) receive_buffer;
+			op_code = ntohs(*op_code_ptr);
+
+			block_num_ptr = (unsigned short*) receive_buffer + BLOCK_OFFSET;
+			block_num = ntohs(*block_num_ptr);
+
+			
+			data_ptr = block_num_ptr + DATA_OFFSET;
+			fwrite(data_ptr, sizeof(data_ptr)/sizeof(data_ptr[0]), 1, write_file);
+			
+			printf("DATA in packet: ");
+			for(int i = 0; i < sizeof(data_ptr); i++) {
+				printf("%c", data_ptr[i]);
+			}
+			printf("\n");
+			printf("DATA Packet received with opcode: %d, and block #: %d\n", op_code, block_num);
+			printf("Data written to file.\n");
+
 		}
 
 		return 0;
