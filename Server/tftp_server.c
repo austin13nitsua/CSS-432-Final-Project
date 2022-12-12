@@ -1,5 +1,3 @@
-//for system calls, please refer to the MAN pages help in Linux 
-//sample echo tensmit receive program over udp - CSS432 - Autumn 2022
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -11,47 +9,37 @@
 #include <signal.h>         // for the signal handler registration.
 #include <unistd.h>
 
-#define SERV_UDP_PORT   514171 // REPLACE WITH YOUR PORT NUMBER
+// Hardcoded unique port number
+#define SERV_UDP_PORT   514171 
 
 
 char *progname;
 
-/* Size of maximum message to received.                            */
-
+// Maximum packet size                           
 #define MAX_BUFFER_SIZE 516
 
-/* Opcode definitions.											   */
-
+// Opcode definitions										  
 const static unsigned short OP_CODE_RRQ 	= 1;
 const static unsigned short OP_CODE_WRQ 	= 2;
 const static unsigned short OP_CODE_DATA 	= 3;
 const static unsigned short OP_CODE_ACK 	= 4;
 const static unsigned short OP_CODE_ERROR 	= 5;
 
-/* Offset values.												   */
+// Offset values									
 const static int FILENAME_OFFSET = 2;
 const static int BLOCK_OFFSET = 2;
 const static int DATA_OFFSET = 2;
 
-/* Mode values. 												   */
+// Mode values 												   
 const static char MODE_OCTET[]  = "octet";
 
-/* The dg_echo function receives data from the already initialized */
-/* socket sockfd and returns them to the sender.                   */
-
-dg_echo(sockfd)
+// Routine which handles TFTP protocol exchange between server and client
+dg_client_rq(sockfd)
 int            sockfd;
-{
-/* struct sockaddr is a general purpose data structure that holds  */
-/* information about a socket that can use a variety of protocols. */
-/* Here, we use Internet family protocols and UDP datagram ports.  */
-/* This structure receives the client's address whenever a         */
-/* datagram arrives, so it needs no initialization.                */
-	
+{	
 	struct sockaddr pcli_addr;
 	
-/* Temporary variables, counters and buffers.                      */
-
+	// Variable declarations
 	int    n, clilen;
 	char receive_buffer[MAX_BUFFER_SIZE];
 	bzero(receive_buffer, sizeof(receive_buffer));
@@ -67,31 +55,16 @@ int            sockfd;
 	unsigned short* block_num_ptr;
 	char* data_ptr;
 
-/* Main echo server loop. Note that it never terminates, as there  */
-/* is no way for UDP to know when the data are finished.           */
 
+	// Main loop which handles data exchange
 	for ( ; ; ) {
-
-/* Initialize the maximum size of the structure holding the        */
-/* client's address.                                               */
-
-		clilen = sizeof(struct sockaddr);
-
-/* Receive data on socket sockfd, up to a maximum of MAXMESG       */
-/* bytes, and store them in mesg. The sender's address is stored   */
-/* in pcli_addr and the structure's size is stored in clilen.      */
-		
+		clilen = sizeof(struct sockaddr);		
 		n = recvfrom(sockfd, receive_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, &clilen);
 		
-/* n holds now the number of received bytes, or a negative number  */
-/* to show an error condition. Notice how we use progname to label */
-/* the source of the error.                                        */
-
-		if (n < 0)
-			{
+		if (n < 0) {
 			 printf("%s: recvfrom error\n",progname);
 			 exit(3);
-			}
+		}
 
 		op_code_ptr = (unsigned short*) receive_buffer;
 		op_code = ntohs(*op_code_ptr);
@@ -100,10 +73,9 @@ int            sockfd;
 		strcpy(filename, filename_ptr);
 
 		mode_ptr = receive_buffer + FILENAME_OFFSET + strlen(filename_ptr) + 1;
-		printf("mode: %s\n", mode_ptr);		
+		//printf("mode: %s\n", mode_ptr);		
 
-/* Logic for when WRQ is received. 								  */
-
+		// Logic for when WRQ is received. 								  
 		if(op_code == 2) {
 			// Create file in Server directory to write to
 			printf("WRQ Packet received\n");
@@ -118,127 +90,108 @@ int            sockfd;
 
 			printf("File %s created, ready for writing\n", filename);
 
-			// Send first ACK packet back to Client
-
-			// Set the opcode portion of the ACK packet
-			printf("Building ACK packet\n");
-			op_code = OP_CODE_ACK;
-			op_code_ptr = (unsigned short*) send_buffer;
-			*op_code_ptr = htons(op_code);
-			
-			// Set the Block Number portion of the ACK packet
+			// Initialize block number to be used in loop
 			block_num = 0;
-			block_num_ptr = (unsigned short*) send_buffer + BLOCK_OFFSET;
-			*block_num_ptr = htons(block_num);
 
-			printf("ACK packet built with opcode: %d, and block #: %d\n", 
-					ntohs(*op_code_ptr), ntohs(*block_num_ptr));
+			// Loop to receive DATA packets and send back ACKs
+			while(1) {
+				// Start building ACK packet
+				// Set the opcode portion of the ACK packet
+				op_code = OP_CODE_ACK;
+				op_code_ptr = (unsigned short*) send_buffer;
+				*op_code_ptr = htons(op_code);
+				
+				// Set the block number portion of the ACK packet
+				block_num_ptr = (unsigned short*) send_buffer + BLOCK_OFFSET;
+				*block_num_ptr = htons(block_num);
 
-			if (sendto(sockfd, send_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, clilen) != MAX_BUFFER_SIZE) {
-				printf("%s: sendto error\n",progname);
-			 	exit(4);
+				//printf("ACK packet built with opcode: %d, and block #: %d\n", 
+						//ntohs(*op_code_ptr), ntohs(*block_num_ptr));
+
+				// Send ACK packet to Client
+				if (sendto(sockfd, send_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, clilen) != MAX_BUFFER_SIZE) {
+					printf("%s: sendto error\n",progname);
+					exit(4);
+				}
+				printf("Sent ACK #%d\n", block_num);
+
+				// Receive DATA packet from Client
+				n = recvfrom(sockfd, receive_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, &clilen);
+				if (n < 0) {
+					printf("%s: recvfrom error\n",progname);
+					exit(3);
+				}
+
+				// Decode op code from received packet
+				op_code_ptr = (unsigned short*) receive_buffer;
+				op_code = ntohs(*op_code_ptr);
+
+				// Decode block number from received packet
+				block_num_ptr = (unsigned short*) receive_buffer + BLOCK_OFFSET;
+				block_num = ntohs(*block_num_ptr);
+				printf("Received DATA #%d\n", block_num);
+				
+				// Write data from packet to local file
+				data_ptr = block_num_ptr + DATA_OFFSET;
+				fwrite(data_ptr, 1, n, write_file);
+				
+				/* PRINT OUT DATA
+				printf("DATA in packet: ");
+				for(int i = 0; i < n; i++) {
+					printf("%c", data_ptr[i]);
+				}
+				*/
+				//printf("\n");
+				//printf("DATA Packet received with opcode: %d, and block #: %d\n", op_code, block_num);
+				
+				// If DATA packet size is less than 516 bytes then commence end of transfer
+				if(n < 516) {
+					// Set the opcode portion of the ACK packet
+					op_code = OP_CODE_ACK;
+					op_code_ptr = (unsigned short*) send_buffer;
+					*op_code_ptr = htons(op_code);
+                    
+					// Set the block number portion of the ACK packet
+					block_num_ptr = (unsigned short*) send_buffer + BLOCK_OFFSET;
+					*block_num_ptr = htons(block_num);
+
+					// Send ACK packet to Client
+					if (sendto(sockfd, send_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, clilen) != MAX_BUFFER_SIZE) {
+						printf("%s: sendto error\n",progname);
+						exit(4);
+					}
+					printf("Sent ACK #%d\n", block_num);
+					printf("File transfer complete!\n");
+					fclose(write_file);
+					return 0;
+				}
+				block_num++;
 			}
-			printf("Sent ACK packet\n");
-
-			// Receive DATA packet from Client
-			n = recvfrom(sockfd, receive_buffer, MAX_BUFFER_SIZE, 0, &pcli_addr, &clilen);
-			if (n < 0)
-			{
-			 printf("%s: recvfrom error\n",progname);
-			 exit(3);
-			}
-
-			op_code_ptr = (unsigned short*) receive_buffer;
-			op_code = ntohs(*op_code_ptr);
-
-			block_num_ptr = (unsigned short*) receive_buffer + BLOCK_OFFSET;
-			block_num = ntohs(*block_num_ptr);
-
-			
-			data_ptr = block_num_ptr + DATA_OFFSET;
-			fwrite(data_ptr, sizeof(data_ptr)/sizeof(data_ptr[0]), 1, write_file);
-			
-			printf("DATA in packet: ");
-			for(int i = 0; i < sizeof(data_ptr); i++) {
-				printf("%c", data_ptr[i]);
-			}
-			printf("\n");
-			printf("DATA Packet received with opcode: %d, and block #: %d\n", op_code, block_num);
-			printf("Data written to file.\n");
-
 		}
-
 		return 0;
 	}
 }
 
 /* Main driver program. Initializes server's socket and calls the  */
 /* dg_echo function that never terminates.                         */
-
 main(argc, argv)
 int     argc;
 char    *argv[];
-{
-	
-/* General purpose socket structures are accessed using an         */
-/* integer handle.                                                 */
-	
+{	
 	int                     sockfd;
-	
-/* The Internet specific address structure. We must cast this into */
-/* a general purpose address structure when setting up the socket. */
-
 	struct sockaddr_in      serv_addr;
-
-/* argv[0] holds the program's name. We use this to label error    */
-/* reports.                                                        */
-
 	progname=argv[0];
-
-/* Create a UDP socket (an Internet datagram socket). AF_INET      */
-/* means Internet protocols and SOCK_DGRAM means UDP. 0 is an      */
-/* unused flag byte. A negative value is returned on error.        */
 
 	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 		{
 		 printf("%s: can't open datagram socket\n",progname);
 		 exit(1); 
 		}
-
-/* Abnormal termination using the exit call may return a specific  */
-/* integer error code to distinguish among different errors.       */
-		
-/* To use the socket created, we must assign to it a local IP      */
-/* address and a UDP port number, so that the client can send data */
-/* to it. To do this, we fisrt prepare a sockaddr structure.       */
-
-/* The bzero function initializes the whole structure to zeroes.   */
 	
-	bzero((char *) &serv_addr, sizeof(serv_addr));
-	
-/* As sockaddr is a general purpose structure, we must declare     */
-/* what type of address it holds.                                  */
-	
+	bzero((char *) &serv_addr, sizeof(serv_addr));	
 	serv_addr.sin_family      = AF_INET;
-	
-/* If the server has multiple interfaces, it can accept calls from */
-/* any of them. Instead of using one of the server's addresses,    */
-/* we use INADDR_ANY to say that we will accept calls on any of    */
-/* the server's addresses. Note that we have to convert the host   */
-/* data representation to the network data representation.         */
-
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-/* We must use a specific port for our server for the client to    */
-/* send data to (a well-known port).                               */
-
 	serv_addr.sin_port        = htons(SERV_UDP_PORT);
-
-/* We initialize the socket pointed to by sockfd by binding to it  */
-/* the address and port information from serv_addr. Note that we   */
-/* must pass a general purpose structure rather than an Internet   */
-/* specific one to the bind call and also pass its size. A         */
-/* negative return value means an error occured.                   */
 
 	if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
 	       { 
@@ -246,13 +199,5 @@ char    *argv[];
 		exit(2);
 	       }
 
-/* We can now start the echo server's main loop. We only pass the  */
-/* local socket to dg_echo, as the client's data are included in   */
-/* all received datagrams.                                         */
-
-	dg_echo(sockfd);
-
-/* The echo function in this example never terminates, so this     */
-/* code should be unreachable.                                     */
-
+	dg_client_rq(sockfd);
 }

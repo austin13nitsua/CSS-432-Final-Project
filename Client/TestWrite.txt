@@ -1,2 +1,8 @@
 This file is a test file.
 It is a file made to be written from the client directory to the server's directory.
+
+The server's copy should be made and look identical to this copy of the file.
+
+If it doesn't then something must have gone horribly wrong...
+
+Random text to increase the size of this file in bytes, apple, frog, tree.
