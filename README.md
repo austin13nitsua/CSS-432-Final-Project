@@ -15,9 +15,15 @@ Note: the "-w" argument does not functionally do anything and is a placeholder f
 
 ## Directory layout
 /CSS-432-Final-Project
-  /Client
-    tftp_client.c
-    tftp_client
-  /Server
-    tftp.server.c
-    tftp_server
+
+|--/Client
+
+|--|--tftp_client.c
+
+|--|--tftp_client
+
+|--/Server
+
+|--|--tftp.server.c
+
+|--|--tftp_server
